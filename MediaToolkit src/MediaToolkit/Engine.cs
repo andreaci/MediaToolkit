@@ -27,7 +27,17 @@
 
         public Engine(string ffMpegPath) : base(ffMpegPath)
         {
-            
+
+        }
+
+        public Engine(bool enableMultipleRunningProcesses) : base(enableMultipleRunningProcesses)
+        {
+
+        }
+
+        public Engine(string ffMpegPath, bool enableMultipleRunningProcesses) : base(ffMpegPath, enableMultipleRunningProcesses)
+        {
+
         }
 
         /// -------------------------------------------------------------------------------------------------
@@ -162,12 +172,18 @@
 
             try
             {
-                this.Mutex.WaitOne();
+                if (Mutex != null)
+                {
+                    this.Mutex.WaitOne();
+                }                
                 this.StartFFmpegProcess(engineParameters);
             }
             finally
             {
-                this.Mutex.ReleaseMutex();
+                if (Mutex != null)
+                {
+                    this.Mutex.ReleaseMutex();
+                }                
             }
         }
 
@@ -257,15 +273,15 @@
                                               ? this.GenerateStartInfo(engineParameters.CustomArguments)
                                               : this.GenerateStartInfo(engineParameters);
 
-            using (this.FFmpegProcess = Process.Start(processStartInfo))
+            using (var FFmpegProcess = Process.Start(processStartInfo))
             {
                 Exception caughtException = null;
-                if (this.FFmpegProcess == null)
+                if (FFmpegProcess == null)
                 {
                     throw new InvalidOperationException(Resources.Exceptions_FFmpeg_Process_Not_Running);
                 }
 
-                this.FFmpegProcess.ErrorDataReceived += (sender, received) =>
+                DataReceivedEventHandler errorDataRecievedFunction = (sender, received) =>
                 {
                     if (received.Data == null) return;
 #if (DebugToConsole)
@@ -313,7 +329,7 @@
 
                         try
                         {
-                            this.FFmpegProcess.Kill();
+                            FFmpegProcess.Kill();
                         }
                         catch (InvalidOperationException)
                         {
@@ -323,15 +339,19 @@
                     }
                 };
 
-                this.FFmpegProcess.BeginErrorReadLine();
-                this.FFmpegProcess.WaitForExit();
+                FFmpegProcess.ErrorDataReceived += errorDataRecievedFunction;
 
-                if ((this.FFmpegProcess.ExitCode != 0 && this.FFmpegProcess.ExitCode != 1) || caughtException != null)
+                FFmpegProcess.BeginErrorReadLine();
+                FFmpegProcess.WaitForExit();
+
+                if ((FFmpegProcess.ExitCode != 0 && FFmpegProcess.ExitCode != 1) || caughtException != null)
                 {
                     throw new Exception(
-                        this.FFmpegProcess.ExitCode + ": " + receivedMessagesLog[1] + receivedMessagesLog[0],
+                        FFmpegProcess.ExitCode + ": " + receivedMessagesLog[1] + receivedMessagesLog[0],
                         caughtException);
                 }
+
+                FFmpegProcess.ErrorDataReceived -= errorDataRecievedFunction;
             }
         }
     }
