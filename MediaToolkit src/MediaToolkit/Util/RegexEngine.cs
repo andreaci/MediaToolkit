@@ -157,7 +157,7 @@ namespace MediaToolkit.Util
                 engine.InputFile.Metadata = new Metadata();
 
             if (engine.InputFile.Metadata.VideoData == null)
-                engine.InputFile.Metadata.VideoData = new Metadata.Video
+                engine.InputFile.Metadata.Streams.Add(new VideoStreamMetadata
                 {
                     Format = matchVideoFormatColorSize[1].ToString(),
                     ColorModel = matchVideoFormatColorSize[2].ToString(),
@@ -165,33 +165,30 @@ namespace MediaToolkit.Util
                     Fps = matchVideoFps[1].Success && !string.IsNullOrEmpty(matchVideoFps[1].ToString()) ? Convert.ToDouble(matchVideoFps[1].ToString(), new CultureInfo("en-US")) : 0,
                     BitRateKbs =
                         matchVideoBitRate.Success
-                            ? (int?) Convert.ToInt32(matchVideoBitRate.Groups[1].ToString())
+                            ? (int?)Convert.ToInt32(matchVideoBitRate.Groups[1].ToString())
                             : null
-                };
+                });
         }
 
         internal static void TestAudio(string data, EngineParameters engine)
         {
-            Match matchMetaAudio = Index[Find.MetaAudio].Match(data);
+            Match matchMetaAudio = new Regex(@"\s+?Stream\s\#(\d):(\d)\(?(\w+)?\)?: Audio:\s([^,]+),\s(\d+) Hz,\s([^,]+),\s(\w+),?\s?(\d+)?\s?k?b?/?s?\s?\(?d?e?f?a?u?l?t?\)?").Match(data);
+
+            if (!matchMetaAudio.Success && data.Contains("Audio:")) {
+                Console.Read();
+            }
 
             if (!matchMetaAudio.Success) return;
 
-            string fullMetadata = matchMetaAudio.Groups[1].ToString();
-
-            GroupCollection matchAudioFormatHzChannel = Index[Find.AudioFormatHzChannel].Match(fullMetadata).Groups;
-            GroupCollection matchAudioBitRate = Index[Find.BitRate].Match(fullMetadata).Groups;
-
-            if (engine.InputFile.Metadata == null)
-                engine.InputFile.Metadata = new Metadata();
-
-            if (engine.InputFile.Metadata.AudioData == null)
-                engine.InputFile.Metadata.AudioData = new Metadata.Audio
-                {
-                    Format = matchAudioFormatHzChannel[1].ToString(),
-                    SampleRate = matchAudioFormatHzChannel[2].ToString(),
-                    ChannelOutput = matchAudioFormatHzChannel[3].ToString(),
-                    BitRateKbs = !(matchAudioBitRate[1].ToString().IsNullOrWhiteSpace()) ? Convert.ToInt32(matchAudioBitRate[1].ToString()) : 0
-                };
+            engine.InputFile.Metadata.Streams.Add(new AudioStreamMetadata()
+            {
+                StreamId = matchMetaAudio.Groups[0].Value + matchMetaAudio.Groups[1].Value,
+                Language = String.IsNullOrEmpty(matchMetaAudio.Groups[3].Value) ? "und" : matchMetaAudio.Groups[3].Value,
+                Format = matchMetaAudio.Groups[4].Value,
+                SampleRate = matchMetaAudio.Groups[5].Value,
+                ChannelOutput = matchMetaAudio.Groups[6].Value,
+                BitRateKbs = Int32.TryParse(matchMetaAudio.Groups[8].Value, out _) ? Convert.ToInt32(matchMetaAudio.Groups[8].Value) : 0
+            }) ;
         }
 
         internal enum Find

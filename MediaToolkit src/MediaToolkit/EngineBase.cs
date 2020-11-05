@@ -174,16 +174,11 @@
                 File.Delete(FFmpegFilePath);
             }
 
-            if (FFmpegProcess != null)
-            {
-                this.FFmpegProcess.Dispose();
-            }            
 
             if (this.Mutex != null)
             {
                 Mutex.Close();
             }
-            this.FFmpegProcess = null;
             this.isDisposed = true;
         }
     }

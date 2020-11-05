@@ -237,11 +237,7 @@
         /// <param name="e">    Event information to send to registered event handlers. </param>
         private void OnConversionComplete(ConversionCompleteEventArgs e)
         {
-            EventHandler<ConversionCompleteEventArgs> handler = this.ConversionCompleteEvent;
-            if (handler != null)
-            {
-                handler(this, e);
-            }
+            this.ConversionCompleteEvent?.Invoke(this, e);
         }
 
         /// -------------------------------------------------------------------------------------------------
@@ -249,11 +245,7 @@
         /// <param name="e">    Event information to send to registered event handlers. </param>
         private void OnProgressChanged(ConvertProgressEventArgs e)
         {
-            EventHandler<ConvertProgressEventArgs> handler = this.ConvertProgressEvent;
-            if (handler != null)
-            {
-                handler(this, e);
-            }
+            this.ConvertProgressEvent?.Invoke(this, e);
         }
 
         /// -------------------------------------------------------------------------------------------------
@@ -280,46 +272,37 @@
             {
                 Exception caughtException = null;
                 if (FFmpegProcess == null)
-                {
                     throw new InvalidOperationException(Resources.Exceptions_FFmpeg_Process_Not_Running);
-                }
 
-                DataReceivedEventHandler errorDataRecievedFunction = (sender, received) =>
+                if (engineParameters.InputFile.Metadata == null)
+                    engineParameters.InputFile.Metadata = new Metadata();
+
+                void errorDataRecievedFunction(object sender, DataReceivedEventArgs received)
                 {
                     if (received.Data == null) return;
-#if (DebugToConsole)
-                    Console.WriteLine(received.Data);
-#endif
+
                     try
                     {
-                        
                         receivedMessagesLog.Insert(0, received.Data);
                         if (engineParameters.InputFile != null)
                         {
                             RegexEngine.TestVideo(received.Data, engineParameters);
                             RegexEngine.TestAudio(received.Data, engineParameters);
-                        
+
                             Match matchDuration = RegexEngine.Index[RegexEngine.Find.Duration].Match(received.Data);
                             if (matchDuration.Success)
                             {
-                                if (engineParameters.InputFile.Metadata == null)
-                                {
-                                    engineParameters.InputFile.Metadata = new Metadata();
-                                }
-
                                 TimeSpan.TryParse(matchDuration.Groups[1].Value, out totalMediaDuration);
                                 engineParameters.InputFile.Metadata.Duration = totalMediaDuration;
                             }
                         }
-                        ConversionCompleteEventArgs convertCompleteEvent;
-                        ConvertProgressEventArgs progressEvent;
 
-                        if (RegexEngine.IsProgressData(received.Data, out progressEvent))
+                        if (RegexEngine.IsProgressData(received.Data, out ConvertProgressEventArgs progressEvent))
                         {
                             progressEvent.TotalDuration = totalMediaDuration;
                             this.OnProgressChanged(progressEvent);
                         }
-                        else if (RegexEngine.IsConvertCompleteData(received.Data, out convertCompleteEvent))
+                        else if (RegexEngine.IsConvertCompleteData(received.Data, out ConversionCompleteEventArgs convertCompleteEvent))
                         {
                             convertCompleteEvent.TotalDuration = totalMediaDuration;
                             this.OnConversionComplete(convertCompleteEvent);
@@ -340,7 +323,7 @@
                             // one possible candidate is the application ending naturally before we get a chance to kill it
                         }
                     }
-                };
+                }
 
                 FFmpegProcess.ErrorDataReceived += errorDataRecievedFunction;
 
